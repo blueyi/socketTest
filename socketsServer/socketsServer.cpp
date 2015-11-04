@@ -5,13 +5,15 @@
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <iostream>
+#include <fstream>
+#include <string>
 
 //需要连接的库
 #pragma comment (lib, "Ws2_32.lib")
 
 //定义默认接受数据缓冲区大小及侦听的端口
-#define DEFAULT_BUFFLEN 512
+#define DEFAULT_BUFFLEN 1024
 #define DEFAULT_PORT "27015"
 
 int __cdecl main(void)
@@ -29,14 +31,15 @@ int __cdecl main(void)
 	struct addrinfo hints;
 
 	//存放接收到的内容
-	int iSendResult;
-	char recvbuf[DEFAULT_BUFFLEN];
-	int recvbuflen = DEFAULT_BUFFLEN;
+//	int iSendResult;
+	char recvFileName[DEFAULT_BUFFLEN];
+	char recvFile[DEFAULT_BUFFLEN];
+	std::string fileName;
 	
 	//初始化WINSOCK
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0) {
-		printf("WSAStartup failed with error: %d\n", iResult);
+		std::cout << "WSAStartup failed with error:" <<  iResult << std::endl;
 		return 1;
 	}
 
@@ -50,7 +53,7 @@ int __cdecl main(void)
 	//获取本地IP地址信息
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
-		printf("getaddrinfo failed with error: %d\n", iResult);
+		std::cout << "WSAStartup failed with error:" <<  iResult << std::endl;
 		WSACleanup();
 		return 1;
 	}
@@ -58,7 +61,7 @@ int __cdecl main(void)
 	//创建一个socket用于侦听服务器
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (ListenSocket == INVALID_SOCKET) {
-		printf("socket failed with error: %ld\n", WSAGetLastError());
+		std::cout << "socket failed with error:" <<  WSAGetLastError() << std::endl;
 		freeaddrinfo(result);
 		WSACleanup();
 		return 1;
@@ -67,7 +70,7 @@ int __cdecl main(void)
 	//将侦听socket绑定到系统以用于侦听服务器
 	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
 	if (iResult == SOCKET_ERROR)  {
-		printf("bind failed with error: %d\n", WSAGetLastError());
+		std::cout << "bind failed with error:" <<  WSAGetLastError() << std::endl;
 		freeaddrinfo(result);
 		closesocket(ListenSocket);
 		WSACleanup();
@@ -79,64 +82,86 @@ int __cdecl main(void)
 	//侦听端口
 	iResult = listen(ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
-		printf("listen failed with error: %d\n", WSAGetLastError());
+		std::cout << "listen failed with error:" << WSAGetLastError() << std::endl;
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
 	}
 
-	//接受客户端的连接，即让客户端socket与侦听socket建议连接
-	ClientSocket = accept(ListenSocket, NULL, NULL);
-	if (ClientSocket == INVALID_SOCKET) {
-		printf("accpet failed with error: %d\n", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
-		return 1;
-	}
+	while (true)
+	{
+		std::cout << std::endl;
+		std::cout << "等待客户端连接......" << std::endl;
+		//接收客户端的连接，即让客户端socket与侦听socket建立连接
+		ClientSocket = accept(ListenSocket, NULL, NULL);
+		if (ClientSocket == INVALID_SOCKET) {
+			std::cout << "accept failed with error:" << WSAGetLastError() << std::endl;
+			closesocket(ListenSocket);
+			WSACleanup();
+			return 1;
+		}
 
-	// 接受到服务端连接的SOCKET后服务端socket可以进行释放
-	closesocket(ListenSocket);
+		// 接收到服务端连接的SOCKET后服务端socket可以进行释放
+//		closesocket(ListenSocket);
 
-	//接收数据直到连接关闭
-	do {
-		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
+		//接收文件名
+		std::ofstream out;
+		iResult = recv(ClientSocket, recvFileName, DEFAULT_BUFFLEN, 0);
 		if (iResult > 0) {
-			printf("Bytes received: %d\n", iResult);
-			//将接到到的数据回显给客户端
-			char *sendbuf = "Hello Client";
-			iSendResult = send(ClientSocket, sendbuf, iResult, 0);
-			if (iSendResult == SOCKET_ERROR) {
-				printf("send failed with error: %d\n", WSAGetLastError());
+			recvFileName[iResult] = '\0';
+			fileName = recvFileName;
+			std::cout << "File name received is " << fileName << std::endl;
+			out.open(fileName, std::ofstream::out);
+		}
+		else {
+			std::cout << "Receive file name error!" << std::endl;
+		}
+
+
+		int count = 0;
+		//接收文件内容直到连接关闭
+		do {
+			iResult = recv(ClientSocket, recvFile, DEFAULT_BUFFLEN, 0);
+			if (iResult == DEFAULT_BUFFLEN) {
+				for (int i = 0; i < DEFAULT_BUFFLEN; ++i) {
+					out.put(recvFile[i]);
+					count++;
+				}
+			}
+			else if (iResult > 0)
+			{
+				for (int i = 0; i < iResult; ++i) {
+					out.put(recvFile[i]);
+					count++;
+				}
+			}
+			else if (iResult == 0)
+				std::cout << "Connection closing...\n" << std::endl;
+			else {
+				std::cout << "recv failed with error:" << WSAGetLastError() << std::endl;
 				closesocket(ClientSocket);
 				WSACleanup();
 				return 1;
 			}
-			recvbuf[iSendResult] = '\0';
-			printf("Bytes sent: %d\n", iSendResult);
-			printf("Sent content: %s\n", recvbuf);
-		}
-		else if (iResult == 0)
-			printf("Connection closing...\n");
-		else {
-			printf("recv failed with error: %d\n", WSAGetLastError());
+		} while (iResult > 0);
+
+		out.close();
+		std::cout << "File receive bytes: " << count << std::endl;
+
+		//接收完成后关闭连接
+		iResult = shutdown(ClientSocket, SD_SEND);
+		if (iResult == SOCKET_ERROR) {
+			std::cout << "shutdown failed with error:" << WSAGetLastError() << std::endl;
 			closesocket(ClientSocket);
 			WSACleanup();
 			return 1;
 		}
-	} while (iResult > 0);
 
-	//接收完成后关闭连接
-	iResult = shutdown(ClientSocket, SD_SEND);
-	if (iResult == SOCKET_ERROR) {
-		printf("shutdown failed with error: %d\n", WSAGetLastError());
+	}
+		//清空连接并释放资源
 		closesocket(ClientSocket);
 		WSACleanup();
-		return 1;
-	}
 
-	//清空连接并释放资源
-	closesocket(ClientSocket);
-	WSACleanup();
 
 	return 0;
 }

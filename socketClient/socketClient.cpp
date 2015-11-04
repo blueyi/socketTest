@@ -6,19 +6,21 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
-#include <stdio.h>
+#include <iostream>
+#include <string>
+#include <fstream>
 
 //需要连接的库
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
 #pragma comment(lib, "AdvApi32.lib")
 
-
-
 //远程端口
 #define DEFAULT_PORT  "27015"
 //默认缓冲区大小
-#define DEFAULT_BUFLEN 512
+#define DEFAULT_BUFLEN 1024
+
+
 
 int __cdecl main(int argc, char **argv)
 {
@@ -30,23 +32,34 @@ int __cdecl main(int argc, char **argv)
 	//result和ptr将指向相应的主机地址信息,hints存放socket属性信息
 	struct addrinfo *result = NULL, *ptr = NULL, hints;
 	//向服务器发送的数据内容
-	char *sendbuf = "Hello Server";
+	char sendBuff[DEFAULT_BUFLEN];
+	std::string fileName = "a.txt";
 	//设置接收数据的缓冲区大小
 	int recvbuflen = DEFAULT_BUFLEN;
 	char recvbuf[DEFAULT_BUFLEN];
 	int iResult;
 
+	std::string ip;
 	//确定参数是否有效
-	if (argc != 2) {
-		printf("usage: %s sever-name\n", argv[0]);
-		return 1;
+	if (argc == 2) {
+		ip = argv[1];
+		std::cout << "usage: " << ip << " sever-name" << std::endl;
+	}
+	else if (argc == 3) {
+		ip = argv[1];
+		std::cout << "usage: " << ip << " sever-name" << std::endl;
+		fileName = argv[2];
+	}
+	else {
+		ip = "127.0.0.1";
+		std::cout << "usage: " << ip << " sever-name" << std::endl;
 	}
 
 	// 初始化winsock 
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0)
 	{
-		printf("WSAStartup failed: %d\n", iResult);
+		std::cout << "WSAStartup failed: " << iResult << std::endl;
 		return 1;
 	}
 
@@ -57,9 +70,9 @@ int __cdecl main(int argc, char **argv)
 	hints.ai_protocol = IPPROTO_TCP;
 
 	//指定服务器地址和端口,argv[1]为IPV4或者IPV6地址
-	iResult = getaddrinfo(argv[1], DEFAULT_PORT, &hints, &result);
+	iResult = getaddrinfo(ip.c_str(), DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
-		printf("getaddrinfo failed: %d\n", iResult);
+		std::cout << "getaddrinfo failed: " << iResult << std::endl;
 		WSACleanup();
 		return 1;
 	}
@@ -70,7 +83,7 @@ int __cdecl main(int argc, char **argv)
 		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
 		//创建失败则释放资源
 		if (ConnectSocket == INVALID_SOCKET) {
-			printf("Error at socket(): %ld\n", WSAGetLastError());
+			std::cout << "Error at socket(): " << WSAGetLastError() << std::endl;
 			freeaddrinfo(result);
 			WSACleanup();
 			return 1;
@@ -89,43 +102,71 @@ int __cdecl main(int argc, char **argv)
 	freeaddrinfo(result);
 	//如果连接失败则返回
 	if (ConnectSocket == INVALID_SOCKET) {
-		printf("Unable to connect to server!\n");
+		std::cout << "Unable to connect to server!" << std::endl;
 		WSACleanup();
 		return 1;
 	}
 
-	//发送数据
-	iResult = send(ConnectSocket, sendbuf, (int)strlen(sendbuf), 0);
+	//发送文件名
+	iResult = send(ConnectSocket, fileName.c_str(), (int)fileName.length(), 0);
 	//发送失败则关闭连接
 	if (iResult == SOCKET_ERROR) {
-		printf("send failed: %d\n", WSAGetLastError());
+		std::cout << "send failed: " << WSAGetLastError() << std::endl;
 		closesocket(ConnectSocket);
 		WSACleanup();
 		return 1;
 	}
-	printf("Byte Sent: %ld\n", iResult);
+	std::cout << "Byte Sent: " << iResult << std::endl;
+	std::cout << "Sent File Name: " << fileName << std::endl;
+
+	//发送文件内容
+	std::ifstream in(fileName, std::ifstream::in);
+	int i = 0;
+	while (in.get(sendBuff[i % DEFAULT_BUFLEN])) {
+		i++;
+		if (i % DEFAULT_BUFLEN == 0) {
+			iResult = send(ConnectSocket, sendBuff, sizeof(sendBuff), 0);
+			//发送失败则关闭连接
+			if (iResult == SOCKET_ERROR) {
+				std::cout << "send failed: " << WSAGetLastError() << std::endl;
+				closesocket(ConnectSocket);
+				WSACleanup();
+				return 1;
+			}
+		}
+	}
+	iResult = send(ConnectSocket, sendBuff, i % DEFAULT_BUFLEN, 0);
+	//发送失败则关闭连接
+	if (iResult == SOCKET_ERROR) {
+		std::cout << "send failed: " << WSAGetLastError() << std::endl;
+		closesocket(ConnectSocket);
+		WSACleanup();
+		return 1;
+	}
+	std::cout << "Sent file content byte: " << i << std::endl;
+	in.close();
 
 	//当没有数据需要发送时，首先关闭当前用于发送数据的socket,以便服务端释放资源，并将该socket用于接收数据
 	iResult = shutdown(ConnectSocket, SD_SEND);
 	if (iResult == SOCKET_ERROR) {
-		printf("shutdown failed: %d\n", WSAGetLastError());
+		std::cout << "shutdown failed: " << WSAGetLastError() << std::endl;
 		closesocket(ConnectSocket);
 		WSACleanup();
 		return 1;
 	}
 
-	//从服务端接收数据直接服务器关闭连接
+	//从服务端接收数据直到服务器关闭连接
 	do {
 		iResult = recv(ConnectSocket, recvbuf, recvbuflen, 0);
 		if (iResult > 0) {
-			printf("Bytes received: %d\n", iResult);
+			std::cout << "Bytes received: " << iResult << std::endl;
 			recvbuf[iResult] = '\0';
-			printf("Bytes received: %s\n", recvbuf);
+			std::cout << "Bytes received: " << recvbuf << std::endl;
 		}
 		else if (iResult == 0)
-			printf("Connection closed\n");
+			std::cout << "Connection closed" << std::endl;
 		else
-			printf("recv failed: %d\n", WSAGetLastError());
+			std::cout << "recv failed: " << WSAGetLastError() << std::endl;
 	} while (iResult > 0);
 
 	//当接收完数据之后关闭socket并释放连接资源
