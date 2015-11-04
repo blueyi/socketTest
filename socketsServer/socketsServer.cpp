@@ -91,7 +91,7 @@ int __cdecl main(void)
 	while (true)
 	{
 		std::cout << std::endl;
-		std::cout << "等待客户端连接......" << std::endl;
+		std::cout << "等待客户端连接..." << std::endl;
 		//接收客户端的连接，即让客户端socket与侦听socket建立连接
 		ClientSocket = accept(ListenSocket, NULL, NULL);
 		if (ClientSocket == INVALID_SOCKET) {
@@ -101,8 +101,6 @@ int __cdecl main(void)
 			return 1;
 		}
 
-		// 接收到服务端连接的SOCKET后服务端socket可以进行释放
-//		closesocket(ListenSocket);
 
 		//接收文件名
 		std::ofstream out;
@@ -110,7 +108,7 @@ int __cdecl main(void)
 		if (iResult > 0) {
 			recvFileName[iResult] = '\0';
 			fileName = recvFileName;
-			std::cout << "File name received is " << fileName << std::endl;
+			std::cout << "接收文件名为： " << fileName << std::endl;
 			out.open(fileName, std::ofstream::out);
 		}
 		else {
@@ -136,7 +134,7 @@ int __cdecl main(void)
 				}
 			}
 			else if (iResult == 0)
-				std::cout << "Connection closing...\n" << std::endl;
+				std::cout << "接收文件完成" << std::endl;
 			else {
 				std::cout << "recv failed with error:" << WSAGetLastError() << std::endl;
 				closesocket(ClientSocket);
@@ -146,7 +144,7 @@ int __cdecl main(void)
 		} while (iResult > 0);
 
 		out.close();
-		std::cout << "File receive bytes: " << count << std::endl;
+		std::cout << "接收文件大小: " << count << std::endl;
 
 		//接收完成后关闭连接
 		iResult = shutdown(ClientSocket, SD_SEND);

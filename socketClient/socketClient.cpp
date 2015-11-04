@@ -43,16 +43,16 @@ int __cdecl main(int argc, char **argv)
 	//确定参数是否有效
 	if (argc == 2) {
 		ip = argv[1];
-		std::cout << "usage: " << ip << " sever-name" << std::endl;
+  std::cout << "远程服务器IP:  " << ip << std::endl;
 	}
 	else if (argc == 3) {
 		ip = argv[1];
-		std::cout << "usage: " << ip << " sever-name" << std::endl;
+  std::cout << "远程服务器IP:  " << ip << std::endl;
 		fileName = argv[2];
 	}
 	else {
 		ip = "127.0.0.1";
-		std::cout << "usage: " << ip << " sever-name" << std::endl;
+  std::cout << "远程服务器IP:  " << ip << std::endl;
 	}
 
 	// 初始化winsock 
@@ -116,8 +116,8 @@ int __cdecl main(int argc, char **argv)
 		WSACleanup();
 		return 1;
 	}
-	std::cout << "Byte Sent: " << iResult << std::endl;
-	std::cout << "Sent File Name: " << fileName << std::endl;
+	std::cout << "文件名所占字节数: " << iResult << std::endl;
+	std::cout << "发送文件名: " << fileName << std::endl;
 
 	//发送文件内容
 	std::ifstream in(fileName, std::ifstream::in);
@@ -143,7 +143,7 @@ int __cdecl main(int argc, char **argv)
 		WSACleanup();
 		return 1;
 	}
-	std::cout << "Sent file content byte: " << i << std::endl;
+	std::cout << "发送文件大小: " << i << std::endl;
 	in.close();
 
 	//当没有数据需要发送时，首先关闭当前用于发送数据的socket,以便服务端释放资源，并将该socket用于接收数据
@@ -164,7 +164,7 @@ int __cdecl main(int argc, char **argv)
 			std::cout << "Bytes received: " << recvbuf << std::endl;
 		}
 		else if (iResult == 0)
-			std::cout << "Connection closed" << std::endl;
+			std::cout << "断开连接..." << std::endl;
 		else
 			std::cout << "recv failed: " << WSAGetLastError() << std::endl;
 	} while (iResult > 0);
