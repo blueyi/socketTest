@@ -101,7 +101,6 @@ int __cdecl main(void)
 			return 1;
 		}
 
-
 		//接收文件名
 		std::ofstream out;
 		iResult = recv(ClientSocket, recvFileName, DEFAULT_BUFFLEN, 0);
@@ -114,7 +113,6 @@ int __cdecl main(void)
 		else {
 			std::cout << "Receive file name error!" << std::endl;
 		}
-
 
 		int count = 0;
 		//接收文件内容直到连接关闭
